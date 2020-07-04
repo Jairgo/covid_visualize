@@ -1,0 +1,106 @@
+version: '2.2'
+services:
+  es_base:
+    image: elasticsearch:7.8.0
+
+    environment:
+      - node.name=es_base
+      - cluster.name=elastic_cluster
+      - discovery.seed_hosts=es_sec,es_ter
+      - cluster.initial_master_nodes=es_base,es_sec,es_ter
+      - bootstrap.memory_lock=true
+
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    volumes:
+      - es_data:/usr/share/elasticsearch/data
+      - ./elas1/jvm.options:/usr/share/elasticsearch/config/jvm.options:rw
+    ports:
+      - 9200:9200
+    networks:
+      - ELK_BRDG
+#---------------------------------------------------------
+  es_sec:
+    image: elasticsearch:7.8.0
+    environment:
+      - node.name=es_sec
+      - cluster.name=elastic_cluster
+      - discovery.seed_hosts=es_base,es_ter
+      - cluster.initial_master_nodes=es_base,es_sec,es_ter
+      - bootstrap.memory_lock=true
+
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    volumes:
+      - es2_data:/usr/share/elasticsearch/data
+      - ./elas2/jvm.options:/usr/share/elasticsearch/config/jvm.options:rw
+    ports:
+      - 9202:9200
+    networks:
+      - ELK_BRDG
+#---------------------------------------------------------
+  es_ter:
+    image: elasticsearch:7.8.0
+    environment:
+      - node.name=es_ter
+      - cluster.name=elastic_cluster
+      - discovery.seed_hosts=es_base,es_sec
+      - cluster.initial_master_nodes=es_base,es_sec,es_ter
+      - bootstrap.memory_lock=true
+
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    volumes:
+      - es3_data:/usr/share/elasticsearch/data
+      - ./elas3/jvm.options:/usr/share/elasticsearch/config/jvm.options:rw
+    ports:
+      - 9203:9200
+    networks:
+      - ELK_BRDG
+
+#---------------------------------------------------------  
+  kibana:
+    image: kibana:7.8.0
+
+    ports:
+      - 5601:5601
+    environment:
+      ELASTICSEARCH_URL: http://es_base:9200
+      ELASTICSEARCH_HOSTS: http://es_base:9200
+    networks:
+      - ELK_BRDG
+#---------------------------------------------------------  
+  logst:
+    image: logstash:7.8.0
+    depends_on:
+      - es_base
+      - es_sec
+    ports:
+      - 5450:5450
+#    environment:
+#      LS_Java_OPTS: "-Xmx512m -Xms512m"
+    volumes:
+      # Dentro de pipeline debe estar el logstash.conf
+      - ./logsta/pipeline/logstash.conf:/usr/share/logstash/pipeline/logstash.conf
+      - ./logsta/jvm.options:/usr/share/logstash/config/jvm.options
+      - ./logsta/logstash.yml:/usr/share/logstash/config/logstash.yml
+    networks:
+      - ELK_BRDG
+#---------------------------------------------------------    
+volumes:
+  es_data:
+    driver: local
+  es2_data:
+    driver: local
+  es3_data:
+    driver: local
+#---------------------------------------------------------  
+networks:
+  ELK_BRDG:
+    driver: bridge
